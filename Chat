@@ -1,0 +1,141 @@
+local Players = game:GetService("Players")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local jobId = game.JobId
+local SERVER = "https://bruton-chat--bruton.replit.app"
+local KEY = "BRUTON-KEY"
+
+local function colorFromName(name)
+	local hash = 0
+	for i = 1, #name do
+		hash = hash + string.byte(name, i) * i
+	end
+	math.randomseed(hash)
+	return Color3.fromRGB(math.random(80,255), math.random(80,255), math.random(80,255))
+end
+
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.Name = "BRUTON_CHAT_GUI"
+gui.ResetOnSpawn = false
+
+local main = Instance.new("Frame", gui)
+main.Size = UDim2.fromScale(0.3,0.35)
+main.Position = UDim2.fromScale(0.35,0.3)
+main.BackgroundColor3 = Color3.fromRGB(120,60,160)
+main.BackgroundTransparency = 0.25
+main.BorderSizePixel = 0
+main.Visible = false
+Instance.new("UICorner", main).CornerRadius = UDim.new(0,16)
+local stroke = Instance.new("UIStroke", main)
+stroke.Color = Color3.fromRGB(200,120,255)
+stroke.Thickness = 2
+
+local title = Instance.new("TextLabel", main)
+title.Size = UDim2.fromScale(1,0.12)
+title.BackgroundTransparency = 1
+title.Text = "BRUTON CHAT"
+title.TextColor3 = Color3.new(1,1,1)
+title.Font = Enum.Font.GothamBold
+title.TextScaled = true
+
+local messages = Instance.new("ScrollingFrame", main)
+messages.Position = UDim2.fromScale(0.03,0.13)
+messages.Size = UDim2.fromScale(0.94,0.65)
+messages.CanvasSize = UDim2.new(0,0,0,0)
+messages.ScrollBarImageTransparency = 1
+messages.BackgroundTransparency = 1
+local list = Instance.new("UIListLayout", messages)
+list.Padding = UDim.new(0,4)
+
+list:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	messages.CanvasSize = UDim2.new(0,0,0,list.AbsoluteContentSize.Y+10)
+	messages.CanvasPosition = Vector2.new(0, math.max(0, messages.CanvasSize.Y.Offset - messages.AbsoluteWindowSize.Y))
+end)
+
+local box = Instance.new("TextBox", main)
+box.Position = UDim2.fromScale(0.03,0.81)
+box.Size = UDim2.fromScale(0.74,0.13)
+box.PlaceholderText = "اكتب رسالتك هنا..."
+box.Text = ""
+box.TextScaled = true
+box.Font = Enum.Font.Gotham
+box.BackgroundColor3 = Color3.fromRGB(90,40,120)
+box.TextColor3 = Color3.new(1,1,1)
+box.ClearTextOnFocus = false
+Instance.new("UICorner", box).CornerRadius = UDim.new(0,12)
+
+local send = Instance.new("TextButton", main)
+send.Position = UDim2.fromScale(0.79,0.81)
+send.Size = UDim2.fromScale(0.18,0.13)
+send.Text = "إرسال"
+send.Font = Enum.Font.GothamBold
+send.TextScaled = true
+send.BackgroundColor3 = Color3.fromRGB(180,90,255)
+send.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", send).CornerRadius = UDim.new(0,12)
+
+local toggle = Instance.new("TextButton", gui)
+toggle.Size = UDim2.fromScale(0.1,0.05)
+toggle.Position = UDim2.fromScale(0.02,0.4)
+toggle.Text = "CHAT"
+toggle.TextScaled = true
+toggle.Font = Enum.Font.GothamBold
+toggle.BackgroundColor3 = Color3.fromRGB(150,80,220)
+toggle.TextColor3 = Color3.new(1,1,1)
+Instance.new("UICorner", toggle).CornerRadius = UDim.new(0,14)
+
+toggle.MouseButton1Click:Connect(function()
+	main.Visible = not main.Visible
+end)
+
+local function addMessage(user,text)
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1,-10,0,28)
+	label.BackgroundTransparency = 1
+	label.TextWrapped = true
+	label.TextXAlignment = Enum.TextXAlignment.Left
+	label.TextYAlignment = Enum.TextYAlignment.Center
+	label.Text = user..": "..text
+	label.Font = Enum.Font.Gotham
+	label.TextScaled = true
+	label.TextColor3 = colorFromName(user)
+	label.Parent = messages
+end
+
+local canSend = true
+send.MouseButton1Click:Connect(function()
+	if box.Text == "" or not canSend then return end
+	canSend = false
+	local msg = box.Text
+	box.Text = ""
+	addMessage(player.DisplayName,msg)
+	HttpService:PostAsync(
+		SERVER.."/send",
+		HttpService:JSONEncode({
+			job = jobId,
+			user = player.DisplayName,
+			text = msg,
+			key = KEY
+		}),
+		Enum.HttpContentType.ApplicationJson
+	)
+	task.delay(3,function()
+		canSend = true
+	end)
+end)
+
+task.spawn(function()
+	while task.wait(1.2) do
+		local data = HttpService:GetAsync(
+			SERVER.."/get?job="..jobId.."&key="..KEY
+		)
+		local msgs = HttpService:JSONDecode(data)
+		messages:ClearAllChildren()
+		list.Parent = messages
+		for _,m in ipairs(msgs) do
+			addMessage(m.user, m.text)
+		end
+	end
+end)
